@@ -1,14 +1,14 @@
 from import_b3 import DeclaraImpostoAcoes
 
 
-relatorio_negociacoes = "negociacao-2022.xlsx"
-relatorio_movimentacoes = "movimentacao-2022.xlsx"
-relatorio_ipos = "ofertas-publicas-2022.xlsx"
-ano = 2022
+ano = 2023
+relatorio_negociacoes = str(ano) + "/negociacao-" + str(ano) + ".xlsx"
+relatorio_movimentacoes = str(ano) + "/movimentacao-" + str(ano) + ".xlsx"
+relatorio_ipos = str(ano) + "/ofertas-publicas-" + str(ano) + ".xlsx"
 
 
 def main():
-    declaracao2022 = DeclaraImpostoAcoes(
+    declaracao = DeclaraImpostoAcoes(
         ano, relatorio_negociacoes, relatorio_movimentacoes, relatorio_ipos)
 
     print("======================================================")
@@ -19,38 +19,76 @@ def main():
     print("- DIVIDENDOS E ALUGUEIS SAO ISENTOS")
     print("- JCP 15% RETIDO NA FONTE")
 
-    print("======================================================")
+    # AÇÔES e FIIS
+    print("\n======================================================")
     print("BENS E DIREITOS")
     print("======================================================")
-    print(declaracao2022.bensDireitos())
-    print("======================================================")
+    print(declaracao.bensDireitos())
+
+    # AÇÕES
+    print("\n======================================================")
     print("RENDIMENTOS COM VENDAS DE AÇÕES - LUCRO ISENTO POR MÊS")
     print("======================================================")
-    print(declaracao2022.calculaRendimentos('lucro_isento'))
+    print(declaracao.calculaVendasStocks('lucro_isento'))
+
+    print("\n======================================================")
+    print("RENDIMENTOS COM VENDAS DE AÇÕES - LUCRO TAXADO POR MÊS")
     print("======================================================")
+    print(declaracao.calculaVendasStocks('lucro_taxado'))
+
+    print("\n======================================================")
     print("RENDIMENTOS COM VENDAS DE AÇÕES - LUCRO ISENTO NO ANO")
     print("======================================================")
-    print(declaracao2022.calculaRendimentos('lucro_isento_no_ano'))
+    print(declaracao.calculaVendasStocks('lucro_isento_no_ano'))
+
+    print("\n======================================================")
+    print("RENDIMENTOS COM VENDAS DE AÇÕES - LUCRO TAXADO NO ANO")
     print("======================================================")
+    print(declaracao.calculaVendasStocks('lucro_taxado_no_ano'))
+
+    print("\n======================================================")
     print("RENDIMENTOS COM VENDAS DE AÇÕES - PREJUÍZO POR MÊS")
     print("======================================================")
-    print(declaracao2022.calculaRendimentos('prejuizo'))
+    print(declaracao.calculaVendasStocks('prejuizo'))
+
+    # FIIS
+    print("\n======================================================")
+    print("RENDIMENTOS COM VENDAS DE FIIS - LUCRO TAXADO POR MÊS")
     print("======================================================")
-    print("PROVENTOS - DIVIDENDO")
+    print(declaracao.calculaVendasFIIs('lucro_taxado'))
+
+    print("\n======================================================")
+    print("RENDIMENTOS COM VENDAS DE FIIS - LUCRO TAXADO NO ANO")
     print("======================================================")
-    print(declaracao2022.somaProventos('dividendo'))
+    print(declaracao.calculaVendasFIIs('lucro_taxado_no_ano'))
+
+    print("\n======================================================")
+    print("RENDIMENTOS COM VENDAS DE FIIS - PREJUÍZO POR MÊS")
     print("======================================================")
-    print("PROVENTOS - RENDIMENTO")
+    print(declaracao.calculaVendasFIIs('prejuizo'))
+
+    # DIVIDENDOS AÇÕES
+    print("\n======================================================")
+    print("PROVENTOS AÇÕES - DIVIDENDO")
     print("======================================================")
-    print(declaracao2022.somaProventos('rendimento'))
+    print(declaracao.somaProventos('dividendo'))
+
+    print("\n======================================================")
+    print("PROVENTOS AÇÕES - JCP")
     print("======================================================")
-    print("PROVENTOS - JCP")
+    print(declaracao.somaProventos('jcp'))
+
+    # RENDIMENTOS FIIS
+    print("\n======================================================")
+    print("PROVENTOS FIIS - RENDIMENTO")
     print("======================================================")
-    print(declaracao2022.somaProventos('jcp'))
-    print("======================================================")
+    print(declaracao.somaProventos('rendimento'))
+
+    # EXCEÇÕES
+    print("\n======================================================")
     print("EVENTOS EXOTICOS")
     print("======================================================")
-    print(declaracao2022.eventosExoticos())
+    print(declaracao.eventosExoticos())
 
 
 if __name__ == "__main__":

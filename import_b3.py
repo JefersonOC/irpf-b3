@@ -34,15 +34,18 @@ class DeclaraImpostoAcoes():
     def _CNPJ(self, ticker):
         if ticker in cnpjs.STOCKS:
             return cnpjs.STOCKS[ticker]
+
         # STOCKS CAN END IN F
         elif ticker.endswith("F") and ticker[:-1] in cnpjs.STOCKS:
             ticker = ticker[:-1]
             return cnpjs.STOCKS[ticker]
+
         # ETF and FII code can end in 11 or 11B
-        if len(ticker) == 6 and ticker.endswith("11"):
-            ticker = ticker[:-2]
-        elif len(ticker) == 7 and ticker.endswith("11B"):
-            ticker = ticker[:-3]
+        # if len(ticker) == 6 and ticker.endswith("11"):
+        #     ticker = ticker[:-2]
+        # elif len(ticker) == 7 and ticker.endswith("11B"):
+        #     ticker = ticker[:-3]
+
         if ticker in cnpjs.FIIS:
             return cnpjs.FIIS[ticker]
         if ticker in cnpjs.ETFS:
@@ -50,11 +53,15 @@ class DeclaraImpostoAcoes():
         return "UNKNOWN"
 
     # Printa a declaraçao das posições no final do ano
-    def _declaraAcoes(self, acoes, corretora):
-        msg = ''
+    def _declaraPapeis(self, acoes, corretora):
         for i in range(len(acoes)):
-            msg += f"{acoes.iloc[i]['CNPJ']}\n{acoes.iloc[i]['Quantidade']} ações do ativo ({acoes.iloc[i]['Código de Negociação']}) - Custódia: {corretora}\nR$ {str(round(acoes.iloc[i]['Valor'],2)).replace('.',',')} \n\n"
-        print(msg)
+            if acoes.iloc[i]['Código de Negociação'] in cnpjs.STOCKS:
+                msg = f"{acoes.iloc[i]['CNPJ']}\n{acoes.iloc[i]['Quantidade']} AÇÕES do ativo ({acoes.iloc[i]['Código de Negociação']}) - Custódia: {corretora}\nR$ {str(round(acoes.iloc[i]['Valor'],2)).replace('.',',')} \n"
+                print(msg)
+
+            if acoes.iloc[i]['Código de Negociação'] in cnpjs.FIIS:
+                msg = f"{acoes.iloc[i]['CNPJ']}\n{acoes.iloc[i]['Quantidade']} FIIS do ativo ({acoes.iloc[i]['Código de Negociação']}) - Custódia: {corretora}\nR$ {str(round(acoes.iloc[i]['Valor'],2)).replace('.',',')} \n"
+                print(msg)
 
     def __init__(self, ano, rel_negociacoes, rel_movimentacoes, rel_ipos):
         self.ano = ano
@@ -189,7 +196,7 @@ class DeclaraImpostoAcoes():
                 saldo.pop(instituicao)
             else:
                 print(instituicao, '\n')
-                self._declaraAcoes(saldo[instituicao], instituicao)
+                self._declaraPapeis(saldo[instituicao], instituicao)
                 saldo_total = pd.concat([saldo_total, saldo[instituicao][[
                                         'Instituição', 'Código de Negociação', 'Quantidade', 'Preço', 'Valor']]])
 
@@ -197,11 +204,12 @@ class DeclaraImpostoAcoes():
         nome_arquivo = 'saldo_acoes_' + str(self.ano) + '.xlsx'
         saldo_total.to_excel(self.dir_saldos + nome_arquivo,
                              sheet_name='Posições ' + '31.12.' + str(self.ano), index=False)
-        print(f'O arquivo "{nome_arquivo}" com o saldo do ano {self.ano} foi criado na pasta "{self.dir_saldos}"!\nMantenha-o nessa pasta para utilizá-lo novamente no próximo ano.')
+        # print(f'O arquivo "{nome_arquivo}" com o saldo do ano {self.ano} foi criado na pasta "{self.dir_saldos}"!\nMantenha-o nessa pasta para utilizá-lo novamente no próximo ano.')
 
-    def calculaRendimentos(self, tipo=None):
+    def calculaVendasStocks(self, tipo=None):
         if type(self.rendimentos) != type(pd.DataFrame):
-            vendas = self.dados[self.dados['Tipo de Movimentação'] == 'Venda']
+            vendas = self.dados[(self.dados['Tipo de Movimentação'] == 'Venda') & (
+                self.dados['Código de Negociação'].isin(cnpjs.STOCKS))]
             vendas = vendas.sort_values(
                 by=['Data do Negócio'], ascending=True).reset_index(drop=True)
             vendas['Mês'] = vendas['Data do Negócio'].dt.month
@@ -259,15 +267,100 @@ class DeclaraImpostoAcoes():
             self.rendimentos = pd.concat(
                 [vendas_por_mes, realizacoes_por_mes], axis=1)
 
+        if tipo == 'lucro_taxado':
+            lucro_isento = self.rendimentos[(self.rendimentos['Total de Vendas'] >= 20000) & (
+                self.rendimentos['Lucro/Prejuizo'] >= 0)]
+            return lucro_isento.rename(columns={'Lucro/Prejuizo': 'Lucro Taxado'})
+
         if tipo == 'lucro_isento':
             lucro_isento = self.rendimentos[(self.rendimentos['Total de Vendas'] < 20000) & (
                 self.rendimentos['Lucro/Prejuizo'] >= 0)]
-            return lucro_isento.rename(columns={'Lucro/Prejuizo': 'Lucro'})
+            return lucro_isento.rename(columns={'Lucro/Prejuizo': 'Lucro Isento'})
+
+        if tipo == 'lucro_taxado_no_ano':
+            lucro_isento = self.rendimentos[(self.rendimentos['Total de Vendas'] >= 20000) & (
+                self.rendimentos['Lucro/Prejuizo'] >= 0)]
+            return lucro_isento.rename(columns={'Lucro/Prejuizo': 'Lucro Taxado Ano'}).sum().to_frame().rename(columns={0: self.ano})
 
         if tipo == 'lucro_isento_no_ano':
             lucro_isento = self.rendimentos[(self.rendimentos['Total de Vendas'] < 20000) & (
                 self.rendimentos['Lucro/Prejuizo'] >= 0)]
-            return lucro_isento.rename(columns={'Lucro/Prejuizo': 'Lucro'}).sum().to_frame().rename(columns={0: self.ano})
+            return lucro_isento.rename(columns={'Lucro/Prejuizo': 'Lucro Isento Ano'}).sum().to_frame().rename(columns={0: self.ano})
+
+        if tipo == 'prejuizo':
+            prejuizo = self.rendimentos[self.rendimentos['Lucro/Prejuizo'] < 0]
+            return prejuizo.rename(columns={'Lucro/Prejuizo': 'Prejuizo'})
+
+    def calculaVendasFIIs(self, tipo=None):
+        if type(self.rendimentos) != type(pd.DataFrame):
+            vendas = self.dados[(self.dados['Tipo de Movimentação'] == 'Venda') & (
+                self.dados['Código de Negociação'].isin(cnpjs.FIIS))]
+            vendas = vendas.sort_values(
+                by=['Data do Negócio'], ascending=True).reset_index(drop=True)
+            vendas['Mês'] = vendas['Data do Negócio'].dt.month
+
+            vendas['Valor'] = vendas['Valor']*(1 - self.taxa_b3)
+            vendas['Preço'] = vendas['Valor']/vendas['Quantidade']
+
+            operacoes_ticker = []
+            resumo_pre_venda = pd.DataFrame(
+                columns=['Quantidade', 'Preço', 'Valor'])
+
+            for registro in vendas.index:
+                operacoes_ticker.append(
+                    self.dados[self.dados['Código de Negociação'] == vendas['Código de Negociação'].iloc[registro]])
+                operacoes_ticker[registro] = operacoes_ticker[registro][operacoes_ticker[registro]
+                                                                        ['Data do Negócio'] < vendas['Data do Negócio'].iloc[registro]]
+                quantidade = 0
+                valor = 0
+                for i in range(len(operacoes_ticker[registro])):
+                    if operacoes_ticker[registro].iloc[i]['Tipo de Movimentação'] == 'Compra':
+                        quantidade += operacoes_ticker[registro].iloc[i]['Quantidade']
+                        valor += operacoes_ticker[registro].iloc[i]['Valor']*(
+                            1 + self.taxa_b3)
+                        preco_medio_atual = valor/quantidade
+                    elif operacoes_ticker[registro].iloc[i]['Tipo de Movimentação'] == 'Venda':
+                        quantidade -= operacoes_ticker[registro].iloc[i]['Quantidade']
+                        valor = preco_medio_atual*quantidade
+                    elif operacoes_ticker[registro].iloc[i]['Tipo de Movimentação'] == 'Desdobro' or operacoes_ticker[registro].iloc[i]['Tipo de Movimentação'] == 'Bonificação em Ativos':
+                        quantidade += operacoes_ticker[registro].iloc[i]['Quantidade']
+                        preco_medio_atual = valor/quantidade
+
+                if quantidade == 0:
+                    nova_linha = {'Quantidade': [0],
+                                  'Preço': [0],
+                                  'Valor': [0]
+                                  }
+                else:
+                    nova_linha = {'Quantidade': [quantidade],
+                                  'Preço': [valor/quantidade],
+                                  'Valor': [valor]
+                                  }
+
+                nova_linha = pd.DataFrame(data=nova_linha)
+                resumo_pre_venda = pd.concat([resumo_pre_venda, nova_linha])
+
+            resumo_pre_venda.reset_index(drop=True, inplace=True)
+
+            realizacoes = vendas.copy()
+            realizacoes['Lucro/Prejuizo'] = vendas['Valor'] - \
+                resumo_pre_venda['Preço']*vendas['Quantidade']
+            realizacoes_por_mes = realizacoes.groupby(
+                by='Mês')['Lucro/Prejuizo'].sum()*(1-self.imp_dedo_duro)
+            vendas_por_mes = vendas.groupby(by='Mês')['Valor'].sum()
+            vendas_por_mes.name = 'Total de Vendas'
+            self.rendimentos = pd.concat(
+                [vendas_por_mes, realizacoes_por_mes], axis=1)
+
+        if tipo == 'lucro_taxado':
+            lucro_isento = self.rendimentos[(
+                self.rendimentos['Lucro/Prejuizo'] >= 0)]
+            return lucro_isento.rename(columns={'Lucro/Prejuizo': 'Lucro Taxado'})
+
+        if tipo == 'lucro_taxado_no_ano':
+            lucro_isento = self.rendimentos[(
+                self.rendimentos['Lucro/Prejuizo'] >= 0)]
+            return lucro_isento.rename(columns={'Lucro/Prejuizo': 'Lucro Taxado Ano'}).sum().to_frame().rename(columns={0: self.ano})
 
         if tipo == 'prejuizo':
             prejuizo = self.rendimentos[self.rendimentos['Lucro/Prejuizo'] < 0]
